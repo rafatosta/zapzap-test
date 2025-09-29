@@ -153,5 +153,8 @@ cp "$WORKDIR/qtwebengine_dictionaries-main"/*.bdic -r "$WORKDIR/dist/zapzap/qtwe
 # Compilar em AppImage
 ARCH=x86_64 "$appimagetool" "$WORKDIR/dist/zapzap/"
 
-# Remove arquivos temporários (.appimage-builder)
+# Mover o AppImage gerado para a raiz do projeto (onde o GitHub Actions espera encontrá-lo)
+find "$WORKDIR" -name "*.AppImage" -exec mv {} "$PWD" \;
+
+# Remover arquivos temporários (.appimage-builder)
 rm -r "$WORKDIR"
