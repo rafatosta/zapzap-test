@@ -15,62 +15,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Instalação do Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Atualiza pip e instala dependências de Python
+      - name: Install project python-dbus
+        run: |
+          sudo apt install libdbus-glib-1-dev libdbus-1-dev
+          pip install dbus-python
+
       - name: Upgrade pip and install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install build pyinstaller
+          pip install build
+          pip install pyinstaller
 
-      # Instala dependências de sistema necessárias para dbus e PyQt
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            libfuse2 \
-            libdbus-1-dev \
-            libdbus-glib-1-dev \
-            libdbus-glib-1-2 \
-            libdbus-1-3 \
-            libx11-6 \
-            libxext6 \
-            libxrender1 \
-            libfontconfig1 \
-            libgl1-mesa-glx \
-            wget \
-            curl \
-            unzip
-
-      # Instala todas as dependências Python do projeto
-      - name: Install Python dependencies
+      - name: Install project dependencies
         run: pip install -r requirements.txt
 
-      # Build da wheel (opcional)
+      - name: Install FUSE
+        run: |
+          sudo add-apt-repository universe
+          sudo apt update
+          sudo apt install -y libfuse2
+
       - name: Build wheel
         run: python -m build --wheel --outdir dist
 
       - name: List dist folder
         run: ls -l dist/
 
-      # Garantir que o script de build do AppImage seja executável
       - name: Ensure build-appimage.sh is executable
         run: chmod +x build-appimage.sh
 
-      # Build do AppImage usando PyInstaller
       - name: Build AppImage
-        run: |
-          # Pode ser necessário adicionar hidden imports
-          ./build-appimage.sh ${{ github.ref_name }}
+        run: ./build-appimage.sh ${{ github.ref_name }}
 
       - name: List AppImage result
         run: ls -l *.AppImage || echo "Nenhum .AppImage encontrado na raiz. Verifique o script."
 
-      # Upload para a release
       - name: Upload assets to release
         uses: softprops/action-gh-release@v1
         with:
