@@ -28,8 +28,8 @@ jobs:
 
       - name: Install FUSE
         run: |
-          add-apt-repository universe
-          apt install libfuse2
+          sudo add-apt-repository universe
+          sudo apt install libfuse2
 
       - name: Build wheel
         run: python -m build --wheel --outdir dist
