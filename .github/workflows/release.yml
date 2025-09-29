@@ -25,6 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
           pip install pyinstaller
+          sudo apt install python3-dbus
 
       - name: Install project dependencies
         run: pip install -r requirements.txt
