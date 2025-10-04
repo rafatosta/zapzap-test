@@ -12,54 +12,38 @@ jobs:
       PYTHON_VERSION: '3.13'
 
     steps:
+      # Pegar o código
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
+      # Configurar Python
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install project python-dbus
+      # Instalar ferramentas de build
+      - name: Install build tools
         run: |
-          sudo apt install libdbus-glib-1-dev libdbus-1-dev
-          pip install dbus-python
+          python -m pip install --upgrade pip setuptools wheel build
 
-      - name: Upgrade pip and install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install build
-          pip install pyinstaller
+      # Obter versão da tag
+      - name: Get version from tag
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      - name: Install project dependencies
-        run: pip install -r requirements.txt
-
-      - name: Install FUSE
-        run: |
-          sudo add-apt-repository universe
-          sudo apt update
-          sudo apt install -y libfuse2
-
+      # Build do wheel
       - name: Build wheel
         run: python -m build --wheel --outdir dist
 
+      # Conferir arquivos gerados
       - name: List dist folder
         run: ls -l dist/
 
-      - name: Ensure build-appimage.sh is executable
-        run: chmod +x build-appimage.sh
-
-      - name: Build AppImage
-        run: ./build-appimage.sh ${{ github.ref_name }}
-
-      - name: List AppImage result
-        run: ls -l *.AppImage || echo "Nenhum .AppImage encontrado na raiz. Verifique o script."
-
-      - name: Upload assets to release
+      # Criar release no GitHub
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             dist/*.whl
-            *.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
