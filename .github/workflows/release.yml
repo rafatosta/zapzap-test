@@ -63,10 +63,30 @@ jobs:
 
           echo "Prepared .desktop and icon for packaging"
 
-      # 9️⃣ Build do .deb com fpm
+      # 9️⃣ Build do .deb com fpm (corrigido)
       - name: Build .deb package with fpm
         run: |
+          # Encontrar o wheel gerado
           WHEEL_FILE=$(ls dist/*.whl | head -n 1)
+          echo "Wheel file: $WHEEL_FILE"
+
+          # Criar diretórios temporários para .desktop e ícone
+          mkdir -p package/usr/share/applications
+          mkdir -p package/usr/share/icons/hicolor/scalable/apps
+
+          # Copiar desktop e ícone
+          cp share/applications/com.rtosta.zapzap.desktop package/usr/share/applications/
+          cp share/icons/com.rtosta.zapzap.svg package/usr/share/icons/hicolor/scalable/apps/
+
+          # Ajustar .desktop para comando global
+          sed -i 's|Exec=.*|Exec=/usr/bin/zapzap|' package/usr/share/applications/com.rtosta.zapzap.desktop
+          sed -i 's|Icon=.*|Icon=com.rtosta.zapzap|' package/usr/share/applications/com.rtosta.zapzap.desktop
+
+          # Criar arquivo temporário para after-install
+          echo 'echo "ZapZap installed successfully"' > after-install.sh
+          chmod +x after-install.sh
+
+          # Executar fpm
           fpm -s python -t deb "$WHEEL_FILE" \
             --name zapzap \
             --version "${{ env.VERSION }}" \
@@ -80,7 +100,7 @@ jobs:
             --maintainer "Rafael Tosta <rafa.ecomp@gmail.com>" \
             --architecture all \
             --prefix=/usr \
-            --after-install <(echo 'echo "ZapZap installed successfully"') \
+            --after-install after-install.sh \
             --directories /usr/bin \
             --directories /usr/share/applications \
             --directories /usr/share/icons/hicolor/scalable/apps \
