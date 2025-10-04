@@ -67,13 +67,13 @@ jobs:
 
           # Criar wrapper executável em /usr/bin/zapzap
           cat > package/usr/bin/zapzap << 'EOF'
-              #!/usr/bin/env python3
-              import sys
-              from zapzap.__main__ import main
+            #!/usr/bin/env python3
+            import sys
+            from zapzap.__main__ import main
 
-              if __name__ == "__main__":
-                  sys.exit(main())
-              EOF
+            if __name__ == "__main__":
+                sys.exit(main())
+            EOF
           chmod +x package/usr/bin/zapzap
 
           # Copiar .desktop e ícone
@@ -103,12 +103,16 @@ jobs:
             --architecture all \
             --after-install after-install.sh
 
+          # Capturar nome do .deb gerado
+          DEB_FILE=$(ls zapzap_*.deb | head -n 1)
+          echo "DEB_FILE=$DEB_FILE" >> $GITHUB_ENV
+
       # 9️⃣ Release to GitHub
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             dist/*.whl
-            *.deb
+            ${{ env.DEB_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
