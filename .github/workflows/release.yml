@@ -12,69 +12,71 @@ jobs:
       PYTHON_VERSION: '3.13'
 
     steps:
-      # 1️⃣ Pegar o código
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Configurar Python
+      # 2️⃣ Set up Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # 3️⃣ Instalar ferramentas de build
+      # 3️⃣ Install build tools
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip setuptools wheel build
 
-      # 4️⃣ Obter versão da tag
+      # 4️⃣ Get version from tag
       - name: Get version from tag
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      # 5️⃣ Build do wheel
+      # 5️⃣ Build wheel
       - name: Build wheel
         run: python -m build --wheel --outdir dist
 
-      # 6️⃣ Conferir arquivos gerados
+      # 6️⃣ List dist folder
       - name: List dist folder
         run: ls -l dist/
 
-      # 7️⃣ Instalar fpm (para criar .deb)
+      # 7️⃣ Install fpm
       - name: Install fpm
         run: |
           sudo apt update
           sudo apt install -y ruby ruby-dev build-essential
           sudo gem install --no-document fpm
 
-      # 8️⃣ Preparar arquivos para .deb
-      - name: Prepare .deb files
+      # 8️⃣ Build .deb using fpm -s dir
+      - name: Build .deb package with fpm (dir method)
         run: |
-          WHEEL_FILE=$(ls dist/*.whl | head -n 1)
-          mkdir -p package/usr/share/applications
-          mkdir -p package/usr/share/icons/hicolor/scalable/apps
+          set -e
 
-          # Copiar desktop e ícone
-          cp share/applications/com.rtosta.zapzap.desktop package/usr/share/applications/
-          cp share/icons/com.rtosta.zapzap.svg package/usr/share/icons/hicolor/scalable/apps/
-
-          # Ajustar desktop para comando global
-          sed -i 's|Exec=.*|Exec=/usr/bin/zapzap|' package/usr/share/applications/com.rtosta.zapzap.desktop
-          sed -i 's|Icon=.*|Icon=com.rtosta.zapzap|' package/usr/share/applications/com.rtosta.zapzap.desktop
-
-          echo "Prepared .desktop and icon for packaging"
-
-      # 9️⃣ Build do .deb com fpm (corrigido)
-      - name: Build .deb package with fpm
-        run: |
-          # Encontrar o wheel gerado
+          # Encontrar wheel
           WHEEL_FILE=$(ls dist/*.whl | head -n 1)
           echo "Wheel file: $WHEEL_FILE"
 
-          # Criar diretórios temporários para .desktop e ícone
+          # Criar diretórios temporários
+          rm -rf package
+          mkdir -p package/usr/bin
+          mkdir -p package/usr/lib/python3/site-packages
           mkdir -p package/usr/share/applications
           mkdir -p package/usr/share/icons/hicolor/scalable/apps
 
-          # Copiar desktop e ícone
+          # Instalar conteúdo do wheel no package
+          python3 -m pip install --target package/usr/lib/python3/site-packages/ "$WHEEL_FILE"
+
+          # Criar wrapper executável em /usr/bin/zapzap
+          cat > package/usr/bin/zapzap << 'EOF'
+              #!/usr/bin/env python3
+              import sys
+              from zapzap.__main__ import main
+
+              if __name__ == "__main__":
+                  sys.exit(main())
+              EOF
+          chmod +x package/usr/bin/zapzap
+
+          # Copiar .desktop e ícone
           cp share/applications/com.rtosta.zapzap.desktop package/usr/share/applications/
           cp share/icons/com.rtosta.zapzap.svg package/usr/share/icons/hicolor/scalable/apps/
 
@@ -86,8 +88,8 @@ jobs:
           echo 'echo "ZapZap installed successfully"' > after-install.sh
           chmod +x after-install.sh
 
-          # Executar fpm
-          fpm -s python -t deb "$WHEEL_FILE" \
+          # Gerar .deb com fpm
+          fpm -s dir -t deb package/ \
             --name zapzap \
             --version "${{ env.VERSION }}" \
             --depends python3-pyqt6 \
@@ -99,15 +101,9 @@ jobs:
             --vendor "Rafael Tosta" \
             --maintainer "Rafael Tosta <rafa.ecomp@gmail.com>" \
             --architecture all \
-            --prefix=/usr \
-            --after-install after-install.sh \
-            --directories /usr/bin \
-            --directories /usr/share/applications \
-            --directories /usr/share/icons/hicolor/scalable/apps \
-            --config-files package/usr/share/applications/com.rtosta.zapzap.desktop \
-            --config-files package/usr/share/icons/hicolor/scalable/apps/com.rtosta.zapzap.svg
+            --after-install after-install.sh
 
-      # 🔟 Criar release no GitHub e anexar arquivos
+      # 9️⃣ Release to GitHub
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
