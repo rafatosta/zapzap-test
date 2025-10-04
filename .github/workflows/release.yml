@@ -12,38 +12,87 @@ jobs:
       PYTHON_VERSION: '3.13'
 
     steps:
-      # Pegar o código
+      # 1️⃣ Pegar o código
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Configurar Python
+      # 2️⃣ Configurar Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Instalar ferramentas de build
+      # 3️⃣ Instalar ferramentas de build
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip setuptools wheel build
 
-      # Obter versão da tag
+      # 4️⃣ Obter versão da tag
       - name: Get version from tag
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      # Build do wheel
+      # 5️⃣ Build do wheel
       - name: Build wheel
         run: python -m build --wheel --outdir dist
 
-      # Conferir arquivos gerados
+      # 6️⃣ Conferir arquivos gerados
       - name: List dist folder
         run: ls -l dist/
 
-      # Criar release no GitHub
+      # 7️⃣ Instalar fpm (para criar .deb)
+      - name: Install fpm
+        run: |
+          sudo apt update
+          sudo apt install -y ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+
+      # 8️⃣ Preparar arquivos para .deb
+      - name: Prepare .deb files
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl | head -n 1)
+          mkdir -p package/usr/share/applications
+          mkdir -p package/usr/share/icons/hicolor/scalable/apps
+
+          # Copiar desktop e ícone
+          cp share/applications/com.rtosta.zapzap.desktop package/usr/share/applications/
+          cp share/icons/com.rtosta.zapzap.svg package/usr/share/icons/hicolor/scalable/apps/
+
+          # Ajustar desktop para comando global
+          sed -i 's|Exec=.*|Exec=/usr/bin/zapzap|' package/usr/share/applications/com.rtosta.zapzap.desktop
+          sed -i 's|Icon=.*|Icon=com.rtosta.zapzap|' package/usr/share/applications/com.rtosta.zapzap.desktop
+
+          echo "Prepared .desktop and icon for packaging"
+
+      # 9️⃣ Build do .deb com fpm
+      - name: Build .deb package with fpm
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl | head -n 1)
+          fpm -s python -t deb "$WHEEL_FILE" \
+            --name zapzap \
+            --version "${{ env.VERSION }}" \
+            --depends python3-pyqt6 \
+            --depends python3-pyqt6-webengine \
+            --depends python3-dbus \
+            --description "ZapZap — WhatsApp client web app" \
+            --license "GPL-3.0-or-later" \
+            --url "https://rtosta.com/zapzap" \
+            --vendor "Rafael Tosta" \
+            --maintainer "Rafael Tosta <rafa.ecomp@gmail.com>" \
+            --architecture all \
+            --prefix=/usr \
+            --after-install <(echo 'echo "ZapZap installed successfully"') \
+            --directories /usr/bin \
+            --directories /usr/share/applications \
+            --directories /usr/share/icons/hicolor/scalable/apps \
+            --config-files package/usr/share/applications/com.rtosta.zapzap.desktop \
+            --config-files package/usr/share/icons/hicolor/scalable/apps/com.rtosta.zapzap.svg
+
+      # 🔟 Criar release no GitHub e anexar arquivos
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             dist/*.whl
+            *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
